@@ -1,5 +1,4 @@
-![3](https://github.com/user-attachments/assets/d1ce71ae-c9b4-4a4d-86d6-ce3d78d42037)
-![ui](https://github.com/user-attachments/assets/ecbd7749-a762-4ee7-b766-f620f013a68f)
+
 Доброго дня спільнота! 
 цей флов для node-red створено для опитування постачальника електроенергіі YASNO через ?не офіційне? я не знаю точно API з 
 привода отримання графіку відключення світла по Київу і Дніпру, створення і зміни правил дінамичного ESS в інверторах VICTRON.
@@ -15,8 +14,14 @@
 P.S. якщо у вас щось не працює - перевірте чи вписали ви свій 
 - VRM Site ID
 -  token
-  в ноді Modify DESS Configuration 
+  в ноді Modify DESS Configuration
+
+![4](https://github.com/user-attachments/assets/a26f61f0-5d60-4df9-8b27-ab3a18437289)
 
 в віконце DASHBOARD 2.0 виберіть своє місто та групу.
 
+![ui](https://github.com/user-attachments/assets/ecbd7749-a762-4ee7-b766-f620f013a68f)
+
 якщо ви не в змозі знайти це вікно то по дефолту змініть першу строчку в ноді "Обробка JSON об'єкту" 
+
+![3](https://github.com/user-attachments/assets/d1ce71ae-c9b4-4a4d-86d6-ce3d78d42037)
