@@ -1,0 +1,502 @@
+[
+    {
+        "id": "d849eb751233e0b4",
+        "type": "tab",
+        "label": "Yasno API",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "f3d2df68e06511e9",
+        "type": "http request",
+        "z": "d849eb751233e0b4",
+        "name": "",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://api.yasno.com.ua/api/v1/pages/home/schedule-turn-off-electricity",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 210,
+        "y": 260,
+        "wires": [
+            [
+                "a69bb8c0e49fd9e7"
+            ]
+        ]
+    },
+    {
+        "id": "182e2eeccdb5de4c",
+        "type": "inject",
+        "z": "d849eb751233e0b4",
+        "name": "Опитування API Yasno",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "1800",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "str",
+        "x": 150,
+        "y": 180,
+        "wires": [
+            [
+                "f3d2df68e06511e9"
+            ]
+        ]
+    },
+    {
+        "id": "a69bb8c0e49fd9e7",
+        "type": "function",
+        "z": "d849eb751233e0b4",
+        "name": "Обробка JSON об'єкту",
+        "func": "const formData = flow.get(\"formData\") || { city: \"kiev\", group: \"6.1\" };\n\nmsg.payload = (function handleObject(object) {\n    if (!Array.isArray(object)) {\n        return { error: \"Дані мають бути масивом!\" };\n    }\n    \n    const foundItem = object.find(item => item.template_name  === \"electricity-outages-daily-schedule\");\n    const datetime = new Date(foundItem.lastRegistryUpdateTime * 1000).toLocaleString();\n    \n    if (foundItem) {\n        const dailySchedule = foundItem.dailySchedule[formData.city];\n        if (dailySchedule && dailySchedule.today) {\n            // if (!dailySchedule.today[formData.group]) {\n            //     return {\n            //         message: \"Відключення на сьогодні не плануються!\",\n            //         data: { \n            //             title: dailySchedule.today.title, \n            //             schedule: [],\n            //             isDaily: true\n            //         }\n            //     };\n            // }\n            \n            return {\n                message: \"Графік на сьогодні існує та успішно вибраний!\",\n                data: { \n                    title: dailySchedule.today.title, \n                    schedule: dailySchedule.today.groups[formData.group],\n                    isDaily: true\n                }\n            };\n        }\n        \n        if (dailySchedule && dailySchedule.tomorrow) {\n          return {\n                message: \"Графік на завтра існує та успішно вибраний!\",\n                data: { \n                    title: dailySchedule.tomorrow.title, \n                    schedule: dailySchedule.tomorrow.groups[formData.group],\n                    isDaily: true\n                }\n            };\n        }\n        \n        if (!dailySchedule) {\n            return {\n                message: \"Графік тижневий обраний!\",\n                data: { \n                    title: foundItem.title, \n                    schedule: foundItem.schedule[formData.city][\"group_\" + formData.group],\n                    isDaily: false\n                }\n            };\n        }\n        \n        return {\n            message: \"Графіку не існує!\",\n            data: null\n        };\n        \n    }\n})(msg.payload.components);\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 450,
+        "y": 260,
+        "wires": [
+            [
+                "f8379dacd56ac272",
+                "58f6d3da34ad8faf"
+            ]
+        ]
+    },
+    {
+        "id": "f8379dacd56ac272",
+        "type": "function",
+        "z": "d849eb751233e0b4",
+        "name": "Обробка графіку (поточний день)",
+        "func": "function mapDayIndex(jsDay) {\n    return jsDay === 0 ? 6 : jsDay - 1; // Зсув днів: 0 (неділя) -> 6, 1 -> 0, 2 -> 1, ...\n}\n\nif (!msg.payload || !Array.isArray(msg.payload.data.schedule)) {\n    msg.payload = { error: \"Неправильний формат даних. Поле 'schedule' відсутнє або це не масив!\" };\n    return msg;\n}\n\nlet todaySchedule;\nif (msg.payload.data.isDaily) {\n    todaySchedule = msg.payload.data.schedule;\n    \n} else {\n    const schedule = msg.payload.data.schedule; // Дані про розклад\n    const jsDayIndex = new Date().getDay(); // Отримуємо день тижня (0 - неділя, 1 - понеділок, ...)\n    const apiDayIndex = mapDayIndex(jsDayIndex); // Коригуємо день відповідно до API (0 - понеділок, ..., 6 - неділя)\n    \n    if (!Array.isArray(schedule[apiDayIndex])) {\n        msg.payload = { error: \"Розклад для сьогоднішнього дня відсутній або неправильний формат!\" };\n        return msg;\n    }\n    \n    todaySchedule = schedule[apiDayIndex];\n}\n\n\n\nmsg.payload = { today_schedule: todaySchedule };\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 760,
+        "y": 260,
+        "wires": [
+            [
+                "0ac50500d08aba49",
+                "4deb03cd46c96ce4"
+            ]
+        ]
+    },
+    {
+        "id": "58f6d3da34ad8faf",
+        "type": "debug",
+        "z": "d849eb751233e0b4",
+        "name": "Оновлений графік",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 470,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "4deb03cd46c96ce4",
+        "type": "function",
+        "z": "d849eb751233e0b4",
+        "name": "Створення об'єкту для DESS",
+        "func": "const todaySchedule = msg.payload.today_schedule || [];\n\nfunction timeToString(time) {\n    const hours = Math.floor(time); // Ціла частина - години\n    const minutes = Math.round((time - hours) * 60); // Дробова частина - хвилини\n    \n    if (hours === 24) {\n        return \"00:00\";\n    }\n    \n    return `${hours.toString().padStart(2, \"0\")}:${minutes.toString().padStart(2, \"0\")}`;\n}\n\nfunction getTariff(hour, isOutage) {\n    if (isOutage) {\n        return 60.00; // Тариф під час відключення\n    } else if (hour >= 23 || hour < 7) {\n        return 2.16; // Тариф у нічний час\n    } else {\n        return 4.32; // Тариф у денний час\n    }\n}\n\nif (todaySchedule.length === 0) {\n    let intervals = [\n        { start: 0, end: 7, isOutage: false },\n        { start: 7, end: 23, isOutage: false },\n        { start: 23, end: 24, isOutage: false }\n    ]\n    \n    let priceSchedule = intervals.map(interval => {\n        return {\n            from: timeToString(interval.start),\n            to: timeToString(interval.end),\n            price: parseFloat(getTariff(interval.start, interval.isOutage).toFixed(2))\n        };\n    });\n\n    const updatedSchedule = [{\n        days: [0, 1, 2, 3, 4, 5, 6],\n        schedule: priceSchedule\n    }]\n    \n    const newPrices = {\n        \"buyPriceSchedule\": JSON.stringify(updatedSchedule),\n    }\n    \n    // Повертаємо результат\n    msg.payload = { ...newPrices };\n    return msg;\n}\n\nfunction splitIntervalsByTariff(interval) {\n    let result = [];\n    const { start, end, isOutage } = interval;\n    const nightStart = 23;\n    const nightEnd = 7;\n    \n    node.warn(interval);\n\n    if ((start >= nightStart) || (start < nightEnd) && (end <= nightEnd) || (end > nightStart)) {\n        result.push({ start, end, isOutage });\n        \n    } \n    \n    if ((start >= nightEnd) && (end <= nightStart)) {\n        result.push({ start, end, isOutage });\n        \n    } \n    \n    if ((start < nightStart) && (end > nightStart)) {\n        result.push({ start, end: nightStart, isOutage });\n        result.push({ start: nightStart, end, isOutage });\n        \n    }\n    \n    if ((start < nightEnd) && (end > nightEnd)) {\n        result.push({ start, end: nightEnd, isOutage });\n        result.push({ start: nightEnd, end, isOutage });\n    }\n    \n    return result;\n}\n\nlet intervals = [];\nlet currentTime = 0; // Початок доби\nfor (let i = 0; i < todaySchedule.length; i++) {\n    const outage = todaySchedule[i];\n\n    if (currentTime < outage.start) {\n        intervals.push({ start: currentTime, end: outage.start, isOutage: false });\n    }\n    intervals.push({ start: outage.start, end: outage.end, isOutage: true });\n    currentTime = outage.end;\n}\n\nif (currentTime < 24) {\n    intervals.push({ start: currentTime, end: 24, isOutage: false });\n}\n\nlet splitIntervals = [];\nfor (let interval of intervals) {\n    splitIntervals = splitIntervals.concat(splitIntervalsByTariff(interval));\n}\n\nnode.warn(intervals)\n\nlet mergedIntervals = [];\nfor (let i = 0; i < splitIntervals.length; i++) {\n    const current = splitIntervals[i];\n    \n    if (\n        mergedIntervals.length > 0 &&\n        mergedIntervals[mergedIntervals.length - 1].isOutage === current.isOutage &&\n        getTariff(mergedIntervals[mergedIntervals.length - 1].start, mergedIntervals[mergedIntervals.length - 1].isOutage) === getTariff(current.start, current.isOutage)\n        ) {\n            mergedIntervals[mergedIntervals.length - 1].end = current.end;\n    } else {\n        mergedIntervals.push(current);        \n    }\n}\n\nlet priceSchedule = mergedIntervals.map(interval => {\n    return {\n        from: timeToString(interval.start),\n        to: timeToString(interval.end),\n        price: parseFloat(getTariff(interval.start, interval.isOutage).toFixed(2))\n    };\n});\n\nconst updatedSchedule = [{\n    days: [0, 1, 2, 3, 4, 5, 6],\n    schedule: priceSchedule\n}]\n\nconst newPrices = {\n    \"buyPriceSchedule\": JSON.stringify(updatedSchedule),\n}\n\n// Повертаємо результат\nmsg.payload = { ...newPrices };\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1090,
+        "y": 260,
+        "wires": [
+            [
+                "47ccec76b4486c4f",
+                "593c20dca5492561"
+            ]
+        ]
+    },
+    {
+        "id": "0ac50500d08aba49",
+        "type": "debug",
+        "z": "d849eb751233e0b4",
+        "name": "Графік поточний",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 810,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "47ccec76b4486c4f",
+        "type": "debug",
+        "z": "d849eb751233e0b4",
+        "name": "Графік для DESS",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1130,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "593c20dca5492561",
+        "type": "vrm-api",
+        "z": "d849eb751233e0b4",
+        "vrm": "a10b1d3b80ef75a8",
+        "name": "Modify DESS Configuration",
+        "api_type": "installations",
+        "idUser": "",
+        "users": "",
+        "idSite": "******* PUT VRM SITE ID *******",
+        "installations": "patch-dynamic-ess-settings",
+        "attribute": "",
+        "stats_interval": "",
+        "show_instance": false,
+        "stats_start": "",
+        "stats_end": "",
+        "use_utc": false,
+        "gps_start": "",
+        "gps_end": "",
+        "widgets": "",
+        "instance": "",
+        "vrm_id": "",
+        "country": "",
+        "b_max": "",
+        "tb_max": "",
+        "fb_max": "",
+        "tg_max": "",
+        "fg_max": "",
+        "b_cycle_cost": "",
+        "buy_price_formula": "",
+        "sell_price_formula": "",
+        "green_mode_on": "",
+        "feed_in_possible": "",
+        "feed_in_control_on": "",
+        "b_goal_hour": "",
+        "b_goal_SOC": "",
+        "store_in_global_context": true,
+        "verbose": false,
+        "x": 1400,
+        "y": 260,
+        "wires": [
+            [
+                "266edf1fe95a0746"
+            ]
+        ]
+    },
+    {
+        "id": "266edf1fe95a0746",
+        "type": "debug",
+        "z": "d849eb751233e0b4",
+        "name": "Перевірка надходження оновленних цін",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1380,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "740e312aabaa62d7",
+        "type": "comment",
+        "z": "d849eb751233e0b4",
+        "name": "Опитування API та встановлення графіку відключення, цін для DESS",
+        "info": "",
+        "x": 270,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "c0a7bb5decb3dc9b",
+        "type": "ui-form",
+        "z": "d849eb751233e0b4",
+        "name": "Форма оновлення групи",
+        "group": "4bbc5c103d1baf98",
+        "label": "",
+        "order": 1,
+        "width": "4",
+        "height": "2",
+        "options": [
+            {
+                "label": "Оберіть місто",
+                "key": "city",
+                "type": "dropdown",
+                "required": true,
+                "rows": null
+            },
+            {
+                "label": "Вибір групи",
+                "key": "group",
+                "type": "dropdown",
+                "required": true,
+                "rows": null
+            }
+        ],
+        "formValue": {
+            "city": "",
+            "group": ""
+        },
+        "payload": "",
+        "submit": "Оновити",
+        "cancel": "",
+        "resetOnSubmit": true,
+        "topic": "topic",
+        "topicType": "msg",
+        "splitLayout": "",
+        "className": "",
+        "passthru": false,
+        "dropdownOptions": [
+            {
+                "dropdown": "city",
+                "value": "kiev",
+                "label": "Київ"
+            },
+            {
+                "dropdown": "city",
+                "value": "dnipro",
+                "label": "Дніпро"
+            },
+            {
+                "dropdown": "group",
+                "value": "1.1",
+                "label": "Група 1.1"
+            },
+            {
+                "dropdown": "group",
+                "value": "1.2",
+                "label": "Група 1.2"
+            },
+            {
+                "dropdown": "group",
+                "value": "2.1",
+                "label": "Група 2.1"
+            },
+            {
+                "dropdown": "group",
+                "value": "2.2",
+                "label": "Група 2.2"
+            },
+            {
+                "dropdown": "group",
+                "value": "3.1",
+                "label": "Група 3.1"
+            },
+            {
+                "dropdown": "group",
+                "value": "3.2",
+                "label": "Група 3.2"
+            },
+            {
+                "dropdown": "group",
+                "value": "4.1",
+                "label": "Група 4.1"
+            },
+            {
+                "dropdown": "group",
+                "value": "4.2",
+                "label": "Група 4.2"
+            },
+            {
+                "dropdown": "group",
+                "value": "5.1",
+                "label": "Група 5.1"
+            },
+            {
+                "dropdown": "group",
+                "value": "5.2",
+                "label": "Група 5.2"
+            },
+            {
+                "dropdown": "group",
+                "value": "6.1",
+                "label": "Група 6.1"
+            },
+            {
+                "dropdown": "group",
+                "value": "6.2",
+                "label": "Група 6.2"
+            }
+        ],
+        "x": 150,
+        "y": 360,
+        "wires": [
+            [
+                "b114e7e6044c6361",
+                "f3d2df68e06511e9",
+                "36a0d803cf14125c"
+            ]
+        ]
+    },
+    {
+        "id": "b114e7e6044c6361",
+        "type": "debug",
+        "z": "d849eb751233e0b4",
+        "name": "Перевірка відправки форми",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 240,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "36a0d803cf14125c",
+        "type": "change",
+        "z": "d849eb751233e0b4",
+        "name": "Додавання міста та групи у контекст",
+        "rules": [
+            {
+                "t": "set",
+                "p": "formData",
+                "pt": "flow",
+                "to": "payload",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 510,
+        "y": 360,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a10b1d3b80ef75a8",
+        "type": "config-vrm-api",
+        "name": "Lom71E"
+    },
+    {
+        "id": "4bbc5c103d1baf98",
+        "type": "ui-group",
+        "name": "Форма даних",
+        "page": "6c6563f487a405bb",
+        "width": "4",
+        "height": "2",
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "6c6563f487a405bb",
+        "type": "ui-page",
+        "name": "Графік відключення (DESS)",
+        "ui": "aa5ad39961fb549c",
+        "path": "/page1",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "f8c1c4362ac77184",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Tablet",
+                "px": "576",
+                "cols": "6"
+            },
+            {
+                "name": "Small Desktop",
+                "px": "768",
+                "cols": "9"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "aa5ad39961fb549c",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "showPageTitle": true,
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": "1",
+        "showDisconnectNotification": true
+    },
+    {
+        "id": "f8c1c4362ac77184",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    }
+]
